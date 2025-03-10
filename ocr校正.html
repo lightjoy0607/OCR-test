@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR 校正工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+
+
+        /* ✅ 確保「三欄佈局」能夠正確顯示 */
+        .container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            width: 95%;
+            max-width: 1400px;
+        }
+
+        /* ✅ 左、中、右三欄 */
+        .left-column, .middle-column, .right-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ✅ 讓比對結果 & 校正邏輯更清楚 */
+        .diff-container, #correctionLog {
+            background: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-size: 16px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* ✅ 批量上傳相關*/
+        .batch-upload {
+            width: 95%;
+            max-width: 800px;
+            background: #f9f9f9;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+}
+
+
+        textarea {
+            width: 300px;
+            height: 200px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        /* 讀取動畫 */
+        .loading {
+            display: none;
+            font-size: 18px;
+            margin-top: 10px;
+        }
+
+        
+        /* ✅ 製作者名稱的樣式 */
+    .creator {
+    font-size: 14px;
+    color: #555;
+    margin-top: -5px;
+    font-style: italic;
+}
+
+/* ✅ 版本號顯示在右下角 */
+#versionNumber {
+    position: fixed;
+    right: 10px;
+    bottom: 10px;
+    font-size: 12px;
+    color: #777;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+        /* 設定視窗 */
+        #settingsPopup {
+    resize: both; /* ✅ 允許使用者手動調整大小 */
+    overflow: auto; /* ✅ 確保內容可滾動 */
+    min-width: 300px;
+    min-height: 200px;
+    max-width: 90vw;
+    max-height: 90vh;
+    position: fixed;
+    background: white;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* ✅ 讓「設定」視窗的邊框可以正確調整大小，但不影響拖曳 */
+#settingsPopup:after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    bottom: 0;
+    right: 0;
+    cursor: nwse-resize; /* ✅ 顯示調整大小的游標 */
+}
+
+/* ✅ 讓「設定」視窗內的內容區域可滾動 */
+#settingsContent {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-bottom: 10px;
+}
+
+/* ✅ 確保拖動功能只影響標題欄，防止影響調整大小 */
+#settingsTitleBar {
+    width: 100%;
+    cursor: grab;
+    padding: 5px;
+    font-size: 16px;
+    background-color: #ddd;
+    border-bottom: 1px solid #ccc;
+    text-align: center;
+    font-weight: bold;
+}
+/* ✅ 讓設定視窗的標題欄固定在視窗的最上方 */
+#settingsTitleBar {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    background: #427f97;
+    color: white;
+    padding: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    cursor: grab;
+    border-bottom: 2px solid #ccc;
+    z-index: 10; /* ✅ 確保標題欄顯示在最上層 */
+}
+        
+/* ✅ 讓「關閉」按鈕在「設定視窗」內部固定 */
+#closeSettingsBtn {
+    position: sticky;  /* ✅ 讓它永遠固定在設定視窗的底部 */
+    bottom: 0;
+    width: 100%;  /* ✅ 讓按鈕寬度撐滿底部，避免被忽略 */
+    padding: 10px;
+    background-color: #427f97;
+    color: white;
+    border: none;
+    border-radius: 0 0 8px 8px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+#closeSettingsBtn:hover {
+    background-color: #0056b3;
+}
+
+/* ✅ 容器設計，讓比對結果易讀 */
+.diff-container {
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 16px;
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* ✅ 設定「批量上傳區域」的樣式 */
+fieldset {
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #f9f9f9;
+}
+
+legend {
+    font-weight: bold;
+    font-size: 16px;
+    padding: 5px 10px;
+    background: #ddd;
+    border-radius: 4px;
+}
+
+/* ✅ 確保比對結果區塊正常顯示 */
+.diff-container {
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 16px;
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;  /* ✅ 確保換行正常 */
+    overflow-wrap: break-word;
+    min-height: 100px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* ✅ 確保 OCR 校正邏輯的換行顯示正常 */
+#correctionLog {
+    white-space: pre-wrap;  /* ✅ 保持換行 */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-family: monospace; /* ✅ 讓格式更清晰 */
+    background: #f9f9f9;
+    padding: 10px;
+    border: 1px solid #ccc;
+    height: 150px;
+    width: 90%;
+    max-width: 1200px;
+}
+
+
+
+
+/* ✅ 標記刪除的文字 */
+.diff-removed {
+    background-color: #ffb3b3;
+    text-decoration: line-through;
+    color: #a00;
+    padding: 2px 4px;
+    margin: 0 2px;
+    border-radius: 3px;
+}
+
+/* ✅ 標記新增的文字 */
+.diff-added {
+    background-color: #b3ffb3;
+    color: #060;
+    padding: 2px 4px;
+    margin: 0 2px;
+    border-radius: 3px;
+}
+
+
+
+/* ✅ 讓「設定」視窗可滾動，內容過長時不影響「關閉」按鈕 */
+#settingsPopup {
+    position: fixed; /* ✅ 讓視窗可移動 */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 500px; /* ✅ 設定最大高度，內容超過時允許滾動 */
+    min-height: 300px;
+    background: white;
+    padding: 20px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+    overflow: auto; /* ✅ 確保內容可以滾動 */
+    display: flex;
+    flex-direction: column; /* ✅ 讓內容區域和按鈕分開 */
+}
+
+/* ✅ 讓內容區域可以滾動，但「關閉」按鈕固定在底部 */
+#settingsContent {
+    flex-grow: 1;  /* ✅ 讓內容區域自適應大小 */
+    overflow-y: auto;  /* ✅ 內容超過時允許滾動 */
+    padding-bottom: 10px;
+}
+        
+        /* 手動設定視窗大小 */
+        #settingsPopup {
+            resize: both; /* ✅ 允許手動調整大小 */
+            overflow: auto; /* ✅ 確保內容不會被裁剪 */
+            min-width: 300px;
+            min-height: 200px;
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+fieldset {
+    border: 2px solid #ccc;  /* ✅ 外框線 */
+    border-radius: 8px;  /* ✅ 圓角 */
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #f9f9f9;  /* ✅ 背景色 */
+}
+
+legend {
+    font-weight: bold;
+    font-size: 16px;
+    padding: 5px 10px;
+    background: #ddd;
+    border-radius: 4px;
+}
+
+/* ✅ 批次上傳視窗樣式 */
+#batchUploadPopup {
+    position: fixed; /* ✅ 讓視窗可移動 */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 450px;
+    background: white;
+    padding: 20px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+    overflow: auto;
+    display: none; /* 預設隱藏 */
+    flex-direction: column;
+}
+
+/* ✅ 批次上傳視窗的標題欄 */
+#batchUploadTitleBar {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    background: #427f97;
+    color: white;
+    padding: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    cursor: grab;
+    border-bottom: 2px solid #ccc;
+    z-index: 10;
+}
+
+/* ✅ 關閉按鈕 */
+#closeBatchUploadBtn {
+    position: sticky;
+    bottom: 0;
+    width: 100%;
+    padding: 10px;
+    background-color: #427f97;
+    color: white;
+    border: none;
+    cursor: pointer;
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+}
+#closeBatchUploadBtn:hover {
+    background-color: #0056b3;
+}
+/* ✅ 讓內容區域可以滾動，但「關閉」按鈕固定在底部 */
+#BatchUploadContent {
+    flex-grow: 1;  /* ✅ 讓內容區域自適應大小 */
+    overflow-y: auto;  /* ✅ 內容超過時允許滾動 */
+    padding-bottom: 10px;
+}
+        
+        /* 手動設定視窗大小 */
+        #BatchUploadPopup {
+            resize: both; /* ✅ 允許手動調整大小 */
+            overflow: auto; /* ✅ 確保內容不會被裁剪 */
+            min-width: 300px;
+            min-height: 200px;
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+
+
+    </style>
+
+
+</head>
+<body>
+    <!-- ✅ 確保 diff-match-patch.js 先載入 -->
+    <script src="D:/user/文件/工作/OCR校正工具/diff_match_patch.js"></script>
+
+    <h2>IAIA計畫用 OCR 校正工具 (由 ChatGPT 提供校正)</h2>
+    <p class="creator">製作者：lightjoy</p>
+    
+    <button onclick="openSettings()">⚙️ 設定</button>
+    
+
+    <!-- ✅ 三欄版面 -->
+    <div class="container">
+        <!-- 左欄：輸入 & 校正 -->
+        <div class="left-column">
+            <h3>輸入 OCR 錯誤文本</h3>
+            <textarea id="ocrInput" placeholder="請貼上 OCR 文字..."></textarea>
+        <!-- ✅ 批次上傳按鈕 -->
+            <button onclick="openBatchUpload()">📂 批次上傳檔案</button>
+
+            <h3>校正後的文本</h3>
+            <textarea id="correctedOutput" readonly></textarea>
+        </div>
+    
+        <!-- 中間欄：比對結果 -->
+        <div class="middle-column">
+            <h3>OCR 與校正後文本的比對結果</h3>
+            <div id="diffOutput" class="diff-container" placeholder="這裡會顯示校正前後的差別處"></div>
+        </div>
+    
+        <!-- 右欄：校正邏輯 -->
+        <div class="right-column">
+            <h3>OCR 校正邏輯</h3>
+            <textarea id="correctionLog" readonly placeholder="這裡會列出這次修改了哪些字詞，並自動把這些字詞加入字彙對照庫。"></textarea>
+        </div>
+    </div>
+    
+
+
+
+<button onclick="correctText()">校正</button>
+<button onclick="compareTexts()">比對 OCR 與校正後文本</button>
+<button onclick="downloadCorrectedText()">下載校正後文本</button>
+
+<!-- 讀取動畫 -->
+<div id="loading" class="loading">⏳ 讀取中，請稍候...</div>
+
+<!-- 設定視窗 -->
+    <div id="settingsPopup" class="settings-popup">
+        <div id="settingsTitleBar">🔧 設定</div>
+        <h3>設定</h3>
+        <label>OpenAI API Key:</label>
+        <input type="text" id="apiKeyInput" placeholder="輸入你的 API Key">
+        <button onclick="saveApiKey()">💾 儲存 API Key</button>
+    <!-- ✅ 「字彙對照庫」區塊 -->
+    <fieldset>
+        <legend>📖 字彙對照庫</legend>
+        <p class="description">
+            這裡可以加入常用且確定的修改詞彙對照。ChatGPT只要遇到這些錯誤詞，都會幫你校正成表中的詞。<br>
+            因為是<b>必定會進行修正</b>，所以請視情況加入。
+            遇到一些比較有可能是正確的詞（像是把「女子」辨識成「大不」，但「大不」在某些情況下可能是正確的），請加入底下的「高優先參考對照表」中，<b>勿放於此欄</b>。<br>
+            <b>每次文本校正的結果都會自動添加於這個對照庫中。</b><br>
+            ⚠️ <b>請定期儲存，否則你可能哪天會欲哭無淚。</b>
+        </p>
+
+        <h4>字彙對照庫 (JSON 格式)</h4>
+        <textarea id="errorDictionaryInput" placeholder='{"錯字": "正確字"}'></textarea>
+        
+        <h4>添加對照庫詞彙</h4>
+        <label>錯誤詞：</label>
+        <input type="text" id="newWrongWord" placeholder="請輸入錯誤詞">
+        <label>校正詞：</label>
+        <input type="text" id="newCorrectWord" placeholder="請輸入校正後的詞">
+        <button onclick="addToDictionary()">添加</button>
+        <button onclick="saveErrorDictionary()">保存字彙對照庫</button>
+        <button onclick="downloadDictionary('errorDictionary', '字彙對照庫')">下載字彙對照庫</button>
+
+    <!-- ✅ 語料庫輸入區 -->
+    <fieldset>
+        <legend>📖 參考語料庫</legend>
+        <p>請輸入該時代的文章作為參考，AI 會根據這些文本進行 OCR 校正。</p>
+        <textarea id="referenceCorpusInput" placeholder="請輸入參考文章..." style="width: 100%; height: 150px;"></textarea>
+        <button onclick="saveReferenceCorpus()">💾 儲存語料庫</button>
+        <button onclick="clearReferenceCorpus()">🗑 清空語料庫</button>
+    </fieldset>
+
+    </fieldset>
+
+
+
+    <!-- ✅ 「高優先參考對照表」區塊 -->
+    <fieldset>
+        <legend>⚠️ 高優先參考對照表</legend>
+        <p class="description">
+            這裡放的主要是上面所說的<b>「把『女子』辨識成『大不』，但『大不』在某些情況下可能是正確的」</b>詞彙。<br>
+            ChatGPT只要遇到這些錯誤詞會考慮<b>優先對照著修正，但仍會參酌上下文，並非強制修改</b>。
+        </p>
+
+        <h4>高優先參考對照表 (JSON 格式)</h4>
+        <textarea id="highPriorityDictionaryInput" placeholder='{"大不": "女子", "小巴": "小八"}'></textarea>
+        
+        <h4>添加高優先對照詞彙</h4>
+        <label>錯誤詞：</label>
+        <input type="text" id="newHighPriorityWrongWord" placeholder="請輸入錯誤詞">
+        <label>校正詞：</label>
+        <input type="text" id="newHighPriorityCorrectWord" placeholder="請輸入校正後的詞">
+        <button onclick="addToHighPriorityDictionary()">添加</button>
+        <button onclick="saveHighPriorityDictionary()">保存高優先對照表</button>
+        <button onclick="downloadDictionary('highPriorityDictionary', '高優先參考對照表')">下載高優先參考對照表</button>
+
+    </fieldset>
+
+<!-- ✅ 關閉按鈕仍然在右下角 -->
+<button id="closeSettingsBtn" onclick="closeSettings()">關閉</button>    
+</div>
+
+<!-- ✅ 批次上傳視窗 -->
+<div id="batchUploadPopup" class="popup">
+    <div id="batchUploadTitleBar">📂 批次上傳</div>
+    <!-- 上傳檔案區域 -->
+    <input type="file" id="batchFileInput" multiple accept=".txt">
+    <!-- 檔案列表（可排序） -->
+    <h4>已選擇的檔案</h4>
+    <ul id="batchFileList"></ul>
+
+    <!-- 合併 & 預覽 -->
+    <h4>合併後的 OCR 預覽</h4>
+    <textarea id="batchMergedPreview" readonly placeholder="這裡會顯示合併後的 OCR 內容"></textarea>
+    <button onclick="mergeBatchFiles()">🔄 合併檔案</button>
+    <button onclick="loadMergedToOCR()">📤 載入到 OCR 區域</button>
+
+    <!-- ✅ 確保「關閉按鈕」不影響「設定」視窗 -->
+    <button id="closeBatchUploadBtn" onclick="closeBatchUpload()">關閉</button>
+</div>
+
+
+<script>
+
+console.log("🔍 檢查 batchFileInput:", document.getElementById("batchFileInput"));
+let correctionLogChunks = [];  // ✅ 設定為全域變數，確保多次校正時不會遺失數據
+
+// ✅ 開啟設定視窗
+function openSettings() {
+    document.getElementById("settingsPopup").style.display = "block";
+    let savedApiKey = localStorage.getItem("apiKey");
+    let savedReferenceCorpus = localStorage.getItem("referenceCorpus") || ""; // ✅ 避免 undefined
+
+    document.getElementById("apiKeyInput").value = savedApiKey || "";
+    document.getElementById("referenceCorpusInput").value = savedReferenceCorpus;
+}
+
+
+// ✅ 關閉設定視窗
+function closeSettings() {
+    document.getElementById("settingsPopup").style.display = "none";
+}
+
+// ✅ 儲存 API Key & 字彙對照庫
+function saveSettings() {
+    let apiKey = document.getElementById("apiKeyInput").value;
+    let errorDictionaryInput = document.getElementById("errorDictionaryInput").value;
+
+    if (apiKey) {
+        localStorage.setItem("apiKey", apiKey);
+    }
+
+    if (referenceCorpus) {
+        localStorage.setItem("referenceCorpus", referenceCorpus); // ✅ 確保語料庫被儲存
+    }
+
+    alert("✅ 設定已成功儲存！");
+
+    try {
+        let errorDictionary = JSON.parse(errorDictionaryInput); // 確保 JSON 格式正確
+        let formattedJson = JSON.stringify(errorDictionary, null, 2);
+
+        localStorage.setItem("apiKey", apiKey);
+        localStorage.setItem("errorDictionary", formattedJson);
+        document.getElementById("errorDictionaryInput").value = formattedJson;
+
+        alert("設定已保存！");
+        closeSettings();
+    } catch (error) {
+        alert("字彙對照庫格式錯誤，請確認 JSON 是否正確！");
+    }
+    
+}
+
+// ✅ 添加對照庫詞彙
+function addToDictionary() {
+    let wrongWord = document.getElementById("newWrongWord").value.trim();
+    let correctWord = document.getElementById("newCorrectWord").value.trim();
+
+    if (!wrongWord || !correctWord) {
+        alert("請輸入錯誤詞和校正詞！");
+        return;
+    }
+
+    let errorDict = JSON.parse(localStorage.getItem("errorDictionary") || "{}");
+
+    if (errorDict[wrongWord]) {
+        alert("這個錯誤詞已經存在於對照庫中！");
+        return;
+    }
+
+    errorDict[wrongWord] = correctWord; // ✅ 添加新對照詞組
+    localStorage.setItem("errorDictionary", JSON.stringify(errorDict, null, 2));
+
+    // ✅ 更新顯示
+    document.getElementById("errorDictionaryInput").value = JSON.stringify(errorDict, null, 2);
+    document.getElementById("newWrongWord").value = "";
+    document.getElementById("newCorrectWord").value = "";
+
+    alert("詞彙已成功添加到對照庫！");
+}
+
+// ✅ 添加「高優先參考對照表」詞彙
+function addToHighPriorityDictionary() {
+    let wrongWord = document.getElementById("newHighPriorityWrongWord").value.trim();
+    let correctWord = document.getElementById("newHighPriorityCorrectWord").value.trim();
+
+    if (!wrongWord || !correctWord) {
+        alert("請輸入錯誤詞和校正詞！");
+        return;
+    }
+
+    let highPriorityDictionary = JSON.parse(localStorage.getItem("highPriorityDictionary") || "{}");
+
+    if (highPriorityDictionary[wrongWord]) {
+        alert("這個錯誤詞已經存在於高優先參考對照表中！");
+        return;
+    }
+
+    highPriorityDictionary[wrongWord] = correctWord; // ✅ 添加新對照詞組
+    localStorage.setItem("highPriorityDictionary", JSON.stringify(highPriorityDictionary, null, 2));
+
+    // ✅ 更新顯示
+    document.getElementById("highPriorityDictionaryInput").value = JSON.stringify(highPriorityDictionary, null, 2);
+    document.getElementById("newHighPriorityWrongWord").value = "";
+    document.getElementById("newHighPriorityCorrectWord").value = "";
+
+    alert("詞彙已成功添加到高優先參考對照表！");
+}
+
+// ✅ 儲存「高優先參考對照表」
+function saveHighPriorityDictionary() {
+    let highPriorityDictionaryInput = document.getElementById("highPriorityDictionaryInput").value;
+
+    try {
+        let highPriorityDictionary = JSON.parse(highPriorityDictionaryInput); // 確保 JSON 格式正確
+        localStorage.setItem("highPriorityDictionary", JSON.stringify(highPriorityDictionary, null, 2));
+        document.getElementById("highPriorityDictionaryInput").value = JSON.stringify(highPriorityDictionary, null, 2);
+
+        alert("高優先參考對照表已保存！");
+    } catch (error) {
+        alert("格式錯誤，請輸入正確的 JSON 物件格式，例如：{\"大不\": \"女子\", \"小巴\": \"小八\"}");
+    }
+}
+
+// ✅ 在開啟「設定」視窗時，自動載入 `localStorage` 內的對照庫資料
+function loadDictionaries() {
+    let errorDictionary = localStorage.getItem("errorDictionary") || "{}";
+    let highPriorityDictionary = localStorage.getItem("highPriorityDictionary") || "{}";
+
+    // ✅ 顯示在 textarea 內，確保即使重新整理頁面，內容仍然保留
+    document.getElementById("errorDictionaryInput").value = JSON.stringify(JSON.parse(errorDictionary), null, 2);
+    document.getElementById("highPriorityDictionaryInput").value = JSON.stringify(JSON.parse(highPriorityDictionary), null, 2);
+}
+
+// ✅ 在頁面載入時，自動載入資料
+window.onload = loadDictionaries;
+
+// ✅ 通用函式：下載 JSON 設定檔
+function downloadDictionary(storageKey, fileName) {
+    let data = localStorage.getItem(storageKey);
+
+    if (!data || data === "{}") {
+        alert(fileName + " 為空，無法下載！");
+        return;
+    }
+
+    try {
+        let blob = new Blob([data], { type: "application/json" });
+        let link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName + ".json";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        alert(fileName + " 下載失敗！");
+    }
+}
+
+
+// ✅ 匯出 JSON 對照庫
+function exportDictionary() {
+    let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(localStorage.getItem("errorDictionary"));
+    let downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", "error_dictionary.json");
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    document.body.removeChild(downloadAnchor);
+}
+
+// ✅ 讓設定視窗可拖動
+function makeSettingsDraggable() {
+    let popup = document.getElementById("settingsPopup");
+    let titleBar = document.getElementById("settingsTitleBar"); // ✅ 讓標題欄成為拖動區域
+    let offsetX = 0, offsetY = 0, isDragging = false;
+
+    titleBar.addEventListener("mousedown", function(e) {
+        isDragging = true;
+        offsetX = e.clientX - popup.offsetLeft;
+        offsetY = e.clientY - popup.offsetTop;
+        titleBar.style.cursor = "grabbing"; // 改變游標樣式
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (isDragging) {
+            popup.style.left = (e.clientX - offsetX) + "px";
+            popup.style.top = (e.clientY - offsetY) + "px";
+        }
+    });
+
+    document.addEventListener("mouseup", function() {
+        isDragging = false;
+        titleBar.style.cursor = "grab"; // 恢復游標樣式
+    });
+}
+    makeSettingsDraggable(); // ✅ 啟動拖動功能
+
+// ✅ 解析純文字格式，仍然能自動更新字彙對照庫
+function updateErrorDictionary(correctionLogText) {
+    let errorDict = JSON.parse(localStorage.getItem("errorDictionary") || "{}");
+
+    let newEntries = correctionLogText.split("\n"); // ✅ 逐行解析錯誤對應關係
+    newEntries.forEach(entry => {
+        let match = entry.match(/^(.+?)\s*->\s*(.+)$/);
+        if (match) {
+            let wrong = match[1].trim();
+            let correct = match[2].trim();
+            if (wrong && correct && !errorDict[wrong]) {
+                errorDict[wrong] = correct; // ✅ 只加入新的錯誤對應
+            }
+        }
+    });
+
+    localStorage.setItem("errorDictionary", JSON.stringify(errorDict, null, 2));
+    document.getElementById("errorDictionaryInput").value = JSON.stringify(errorDict, null, 2); // ✅ 更新顯示
+}
+
+// ✅ 在 OCR 校正完成後，自動更新對照庫
+if (correctionLogChunks.length > 0) {
+    updateErrorDictionary(correctionLogChunks.join("\n"));
+} else {
+    console.warn("⚠️ correctionLogChunks 為空，無法更新對照庫！");
+}
+
+function saveApiKey() {
+    let apiKey = document.getElementById("apiKeyInput").value.trim();
+
+    if (!apiKey.startsWith("sk-")) {
+        alert("請輸入有效的 OpenAI API Key！");
+        return;
+    }
+
+    localStorage.setItem("apiKey", apiKey);
+    alert("✅ API Key 已成功儲存！");
+}
+
+
+// ✅ 使用 diff-match-patch 來比對 OCR 原文 & 校正後文本
+function compareTexts() {
+    if (typeof diff_match_patch === "undefined") {
+        alert("❌ 錯誤：diff-match-patch.js 沒有載入，請稍候再試！");
+        return;
+    }
+
+    let ocrText = document.getElementById("ocrInput").value.trim();
+    let correctedText = document.getElementById("correctedOutput").value.trim();
+    let diffOutput = document.getElementById("diffOutput");
+
+    if (!ocrText || !correctedText) {
+        alert("請輸入 OCR 原文與校正後的文本！");
+        return;
+    }
+
+    // ✅ 創建 Diff-Match-Patch 物件
+    let dmp = new diff_match_patch();
+    let diffs = dmp.diff_main(ocrText, correctedText);
+
+    console.log("Diff 結果：", diffs);  // ✅ 檢查 Diff 結果是否正確
+
+    if (!diffs || diffs.length === 0) {
+        alert("比對結果為空！");
+        return;
+    }
+
+    // ✅ 讓 Diff 結果更準確
+    dmp.diff_cleanupSemantic(diffs);
+
+    let diffHtml = diffs.map(part => {
+        let text = part[1].replace(/\n/g, "<br>");  // ✅ 確保換行正確顯示
+        if (part[0] === 1) {
+            return `<span class="diff-added">${text}</span>`;
+        } else if (part[0] === -1) {
+            return `<span class="diff-removed">${text}</span>`;
+        } else {
+            return `<span>${text}</span>`;
+        }
+    }).join("");
+
+    diffOutput.innerHTML = diffHtml;
+}
+
+
+
+// ✅ 手動載入 diff-match-patch.js
+function loadDiffMatchPatch() {
+    let script = document.createElement("script");
+    script.src = "D:/user/文件/工作/OCR校正工具/diff_match_patch.js";
+    script.onload = function() {
+        console.log("✅ diff-match-patch.js 已成功載入");
+    };
+    script.onerror = function() {
+        console.error("❌ 無法載入 diff-match-patch.js");
+    };
+    document.head.appendChild(script);
+}
+
+
+// ✅ 確保批次上傳視窗能夠打開
+function openBatchUpload() {
+    let popup = document.getElementById("batchUploadPopup");
+    if (popup) {
+        popup.style.display = "block";
+    } else {
+        console.error("❌ 找不到 batchUploadPopup 元素！");
+    }
+}
+
+// ✅ 確保批次上傳視窗可以關閉
+function closeBatchUpload() {
+    let popup = document.getElementById("batchUploadPopup");
+    if (popup) {
+        popup.style.display = "none";
+    }
+}
+
+
+// ✅ 讓批次上傳視窗可拖動
+function makeBatchUploadDraggable() {
+    let popup = document.getElementById("batchUploadPopup");
+    let titleBar = document.getElementById("batchUploadTitleBar");
+    let offsetX = 0, offsetY = 0, isDragging = false;
+
+    titleBar.addEventListener("mousedown", function(e) {
+        isDragging = true;
+        offsetX = e.clientX - popup.offsetLeft;
+        offsetY = e.clientY - popup.offsetTop;
+        titleBar.style.cursor = "grabbing";
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (isDragging) {
+            popup.style.left = (e.clientX - offsetX) + "px";
+            popup.style.top = (e.clientY - offsetY) + "px";
+        }
+    });
+
+    document.addEventListener("mouseup", function() {
+        isDragging = false;
+        titleBar.style.cursor = "grab";
+    });
+}
+makeBatchUploadDraggable(); // ✅ 啟動拖動功能
+
+
+
+// ✅ 上傳 & 顯示檔案
+let batchUploadedFiles = [];
+
+document.addEventListener("DOMContentLoaded", function () {
+    let batchInput = document.getElementById("batchFileInput");
+
+    console.log("🔍 檢查 batchFileInput:", batchInput);
+
+    if (batchInput) {
+        try {
+            batchInput.addEventListener("change", handleBatchUpload);
+            console.log("📂 batchFileInput 事件監聽已綁定！");
+        } catch (error) {
+            console.error("❌ 錯誤：綁定事件監聽失敗！", error);
+        }
+    } else {
+        console.error("❌ 錯誤：找不到 batchFileInput，請檢查 HTML 的 id 是否正確！");
+    }
+});
+console.log("📂 batchFileInput 事件監聽已綁定！");
+
+function handleBatchUpload() {
+    console.log("📂 handleBatchUpload() 被執行！"); // ✅ 測試是否有進入函式
+
+    let input = document.getElementById("batchFileInput");
+    
+    if (!input.files.length) {
+        alert("請選擇至少一個檔案！");
+        return;
+    }
+
+    batchUploadedFiles = Array.from(input.files);
+    console.log("✅ 已選擇檔案：", batchUploadedFiles); // ✅ 測試是否有抓到檔案
+    displayBatchFileList();
+}
+
+// ✅ 顯示已選擇的檔案
+function displayBatchFileList() {
+    console.log("📂 顯示檔案列表...", batchUploadedFiles); // ✅ 檢查這行是否有執行
+    let fileList = document.getElementById("batchFileList");
+
+    fileList.innerHTML = ""; // 清空舊列表
+
+    batchUploadedFiles.forEach((file, index) => {
+        let li = document.createElement("li");
+        li.textContent = file.name;
+
+        let upButton = document.createElement("button");
+        upButton.textContent = "▲";
+        upButton.onclick = () => moveBatchFile(index, -1);
+
+        let downButton = document.createElement("button");
+        downButton.textContent = "▼";
+        downButton.onclick = () => moveBatchFile(index, 1);
+
+        li.appendChild(upButton);
+        li.appendChild(downButton);
+        fileList.appendChild(li);
+    });
+}
+
+
+// ✅ 移動檔案順序
+function moveBatchFile(index, direction) {
+    let newIndex = index + direction;
+    if (newIndex >= 0 && newIndex < batchUploadedFiles.length) {
+        [batchUploadedFiles[index], batchUploadedFiles[newIndex]] = [batchUploadedFiles[newIndex], batchUploadedFiles[index]];
+        displayBatchFileList();
+    }
+}
+
+// ✅ 合併檔案內容並預覽
+async function mergeBatchFiles() {
+    if (batchUploadedFiles.length === 0) {
+        alert("請先選擇檔案！");
+        return;
+    }
+
+    console.log("🔄 開始合併檔案...", batchUploadedFiles); // ✅ 確保檔案存在
+
+    let mergedText = "";
+    for (let file of batchUploadedFiles) {
+        let text = await file.text();
+        mergedText += text.trim() + "\n\n";
+    }
+
+    document.getElementById("batchMergedPreview").value = mergedText;
+    console.log("✅ 合併完成！", mergedText); // ✅ 確保內容正確
+    alert("檔案合併成功！");
+}
+
+
+
+// ✅ 載入合併內容到 OCR 區域
+function loadMergedToOCR() {
+    let mergedText = document.getElementById("batchMergedPreview").value;
+    if (mergedText.trim().length === 0) {
+        alert("無合併內容可載入！");
+        return;
+    }
+    document.getElementById("ocrInput").value = mergedText;
+    alert("已載入合併內容到 OCR 區域！");
+}
+
+
+// ✅ 確保 DOM 載入後才執行，避免找不到元素
+document.addEventListener("DOMContentLoaded", function () {
+    let fileInput = document.getElementById("batchFileInput");
+    if (fileInput) {
+        fileInput.addEventListener("change", handleBatchUpload);
+        console.log("✅ 批次上傳檔案按鈕綁定成功！");
+    } else {
+        console.error("❌ 無法找到 batchFileInput，請檢查 HTML 是否正確！");
+    }
+});
+
+// ✅ 儲存語料庫到 localStorage
+function saveReferenceCorpus() {
+    let referenceCorpus = document.getElementById("referenceCorpusInput").value.trim();
+    localStorage.setItem("referenceCorpus", referenceCorpus);
+    alert("📖 語料庫已成功保存！");
+}
+
+// ✅ 清空語料庫
+function clearReferenceCorpus() {
+    localStorage.removeItem("referenceCorpus");
+    document.getElementById("referenceCorpusInput").value = "";
+    alert("📖 語料庫已清空！");
+}
+
+// ✅ 載入語料庫（當使用者打開設定時自動載入）
+function loadReferenceCorpus() {
+    document.getElementById("referenceCorpusInput").value = localStorage.getItem("referenceCorpus") || "";
+}
+
+// ✅ 當頁面載入時，自動載入語料庫
+window.onload = function () {
+    loadReferenceCorpus();
+};
+
+
+// ✅ **將 correctionLogChunks 設為全域變數**
+window.correctionLogChunks = []; 
+
+// ✅ **OCR 校正功能（支援批量 & 超長文本）**
+async function correctText() {
+    let correctedChunks = [];
+    let referenceCorpus = localStorage.getItem("referenceCorpus") || ""; // ✅ 確保變數不會是 undefined
+
+    
+    let ocrText = document.getElementById("ocrInput").value;
+    let apiKey = localStorage.getItem("apiKey");
+
+    if (!apiKey || !apiKey.startsWith("sk-")) {
+        alert("請提供有效的 OpenAI API Key！");
+        return;
+    }
+
+    let errorDictionary = JSON.parse(localStorage.getItem("errorDictionary") || "{}");
+    let highPriorityDictionary = JSON.parse(localStorage.getItem("highPriorityDictionary") || "{}");
+
+    let errorEntries = Object.entries(errorDictionary)
+        .map(([wrong, correct]) => `${wrong} -> ${correct}`)
+        .join("\n");
+
+    let highPriorityEntries = Object.entries(highPriorityDictionary)
+        .map(([wrong, correct]) => `${wrong} -> ${correct}`)
+        .join("\n");
+
+    let prompt = `你好。以下這段文字是一份民國初年的雜誌，進行 OCR 的結果。其中有許多辨識錯誤的字和標點符號。
+    這是一份 OCR 錯誤修正任務。請優先考慮「字型相似的錯誤」，遇到類似的錯誤時，請優先參考筆畫相似的正確字，而非語義相近的詞。
+    你的任務是 **只修正 OCR 辨識錯誤的字**，請 **絕對不要擅自增加或減少任何字詞**，請 **逐字對應修正**。
+
+    **✅ 允許**：更正 OCR 錯誤的字，例如「纇 -> 類」。
+    **❌ 禁止**：
+    1. **不要擅自增刪字**。
+    2. **不要更動語序**，如果句子不通順，請仍然維持原樣。
+    3. **不要重新組織句子**，只能進行錯字校正。
+    4. **參考下方提供的文章**，確保用詞、句法符合該時代習慣。
+
+    ---
+
+    🔹 **📖 參考語料（該時代文章）：**
+    ${referenceCorpus}
+
+    ---
+
+
+    如果 OCR 原文內沒有錯字，請輸出「無須校正」。
+
+    **錯誤對照庫**：
+    \n\n${errorEntries}
+
+    **⚠️ 高優先參考對照表**：
+    \n\n${highPriorityEntries}
+
+    **請依照這些規則進行修正，確保文本恢復為正確的繁體中文。**`;
+
+    let loadingIndicator = document.getElementById("loading");
+    let correctedOutput = document.getElementById("correctedOutput");
+    let correctionLog = document.getElementById("correctionLog");
+
+    loadingIndicator.style.display = "block";
+
+    const MAX_CHUNK_SIZE = 1000;
+    let textChunks = splitText(ocrText, MAX_CHUNK_SIZE);
+
+    // ✅ **清空舊的 correctionLogChunks，確保這次校正是新的**
+    window.correctionLogChunks = [];
+
+    for (let chunk of textChunks) {
+        try {
+            let response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + apiKey
+                },
+                body: JSON.stringify({
+                    model: "gpt-4-turbo",
+                    messages: [
+                        { "role": "system", "content": prompt },
+                        { "role": "user", "content": `請幫我校正以下 OCR 文字錯誤：\n\n${chunk}` },
+                        { "role": "user", "content": `此外，請提供 OCR 校正邏輯：\n\n---\n校正後的文本：\n[校正後的內容]\n\nOCR 校正邏輯：\n[錯誤字詞 -> 修正後的內容]\n---` }
+                    ]
+                })
+            });
+
+            // ✅ **確保 `data` 是正確的 JSON，避免 `undefined` 錯誤**
+            let data = await response.json() || { choices: [{ message: { content: "無法獲取校正結果" } }] };
+            console.log("🔍 GPT 回應：", data); // **偵錯用**
+
+            let responseText = data.choices[0].message.content || "無法獲取校正結果";
+
+            let correctedText = responseText.split("\n\nOCR 校正邏輯：")[0].replace("校正後的文本：", "").trim();
+            let correctionLogicMatch = responseText.match(/OCR 校正邏輯：\n([\s\S]+)/);
+            let correctionLogic = correctionLogicMatch ? correctionLogicMatch[1].trim() : "無法提供校正邏輯";
+
+            console.log("🔍 提取的 correctionLogic:", correctionLogic);
+
+            correctedChunks.push(correctedText);
+            window.correctionLogChunks.push(correctionLogic);
+
+        } catch (error) {
+            console.error("錯誤：", error);
+            alert("請求失敗，請檢查 API Key 或網路連線！");
+            correctedChunks.push("⚠️ 校正失敗");
+            window.correctionLogChunks.push("⚠️ 無法提供校正邏輯");
+        }
+    }
+
+    loadingIndicator.style.display = "none";
+    correctedOutput.value = correctedChunks.join("\n\n");
+    correctionLog.value = window.correctionLogChunks.join("\n\n");
+
+    console.log("🚀 correctionLogChunks 更新後：", window.correctionLogChunks);
+
+    // ✅ **校正完成後，自動更新字彙對照庫**
+    updateErrorDictionary(window.correctionLogChunks.join("\n"));
+}
+
+
+// ✅ 切分文本成多個區塊
+function splitText(text, maxSize) {
+    let chunks = [];
+    for (let i = 0; i < text.length; i += maxSize) {
+        chunks.push(text.substring(i, i + maxSize));
+    }
+    return chunks;
+}
+
+// ✅ 解析回應，確保不會刪減文本
+let responseText = data.choices[0].message.content;
+
+// 確保文本解析不會出錯
+let correctedTextMatch = responseText.match(/校正後的文本：\n([\s\S]+?)\n\nOCR 校正邏輯：/);
+let correctionLogicMatch = responseText.match(/OCR 校正邏輯：\n([\s\S]+)/);
+
+let correctedText = correctedTextMatch ? correctedTextMatch[1].trim() : ocrText; // ✅ 防止回傳空值
+let correctionLogic = correctionLogicMatch ? correctionLogicMatch[1].trim() : "無法提供校正邏輯";
+
+
+// ✅ 避免 GPT 錯誤回應「無須校正」
+if (correctedText.includes("無須校正") && correctedText.length < 20) {
+    correctedText = ocrText; // ✅ 保留原始文本
+}
+
+
+correctedChunks.push(correctedText);
+correctionLogChunks.push(correctionLogic);
+
+// ✅ 下載校正後的文本
+function downloadCorrectedText() {
+    let correctedText = document.getElementById("correctedOutput").value;
+    
+    if (!correctedText) {
+        alert("沒有校正後的文本可下載！");
+        return;
+    }
+
+    let blob = new Blob([correctedText], { type: "text/plain" });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "校正後文本.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+    </script>
+ <div id="versionNumber">版本：1.0.5</div>   
+</body>
+</html>
